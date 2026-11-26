@@ -66,7 +66,6 @@ jobs:
           sudo apt-get install gir1.2-gstreamer-1.0
           sudo apt-get install gir1.2-gtk-4.0
           sudo apt-get install gir1.2-gst-plugins-base-1.0
-          sudo apt-get install gstreamer1.0-gtk4
           sudo pip install pyautogui
 
       - name: Run test
