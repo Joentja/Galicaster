@@ -10,21 +10,12 @@
 # this license, visit http://creativecommons.org/licenses/by-nc-sa/3.0/
 # or send a letter to Creative Commons, 171 Second Street, Suite 300,
 # San Francisco, California, 94105, USA.
-#
-#   pipestr = ( ' filesrc location=video1 ! decodebin name=audio ! queue ! xvimagesink name=play1 '
-#               ' filesrc location=video2 ! decodebin ! queue ! xvimagesink name=play2 '
-#               ' audio. ! queue ! level name=VUMETER message=true interval=interval ! autoaudiosink name=play3 ')
-#
-#
 
 import gi
 
-gi.require_version("Gtk", "4.0")
 gi.require_version("Gst", "1.0")
 
-from gi.repository import Gtk, Gst, Gdk, GObject
-from gi.repository import GdkX11 # noqa: ignore=F401
-# Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
+from gi.repository import Gst, GObject
 
 import os
 
@@ -34,7 +25,7 @@ from galicaster.utils.mediainfo import get_duration
 
 logger = context.get_logger()
 
-GST_TIMEOUT= Gst.SECOND*10
+GST_TIMEOUT = Gst.SECOND * 10
 
 INIT    = 0
 READY   = 1
@@ -43,24 +34,20 @@ PAUSED  = 3
 STOPPED = 4
 ERRORED = 5
 
-class Player(object):
-    def __del__(self):
-        self.pipeline.get_bus().remove_signal_watch()
 
+class Player(object):
     def __init__(self, files, players={}):
         """
-        Initialize the player
+        Initialize the player.
         This class is event-based and needs a mainloop to work properly.
 
-        :param files: a ``dict`` a file name list to play
-        :param players: a ``dict`` a Gtk.DrawingArea list to use as player
+        :param files: a ``dict`` mapping track identifiers to file paths to play
+        :param players: a ``dict`` mapping track identifiers to Gtk.Picture widgets
         """
-        # FIXME comprobar que existen los files sino excepcion
         if not isinstance(files, dict):
             raise TypeError(
                 '%s: need a %r; got a %r: %r' % ('files', dict, type(files), files)
             )
-        # FIXME check the values are Gtk.DrawingArea
         if not isinstance(players, dict):
             raise TypeError(
                 '%s: need a %r; got a %r: %r' % ('players', dict, type(players), players)
@@ -78,29 +65,26 @@ class Player(object):
 
         self.__get_duration_and_run()
 
+    def __del__(self):
+        if self.pipeline:
+            self.pipeline.get_bus().remove_signal_watch()
+
     def create_pipeline(self):
         self.pipeline = Gst.Pipeline.new("galicaster_player")
         bus = self.pipeline.get_bus()
-        # Create bus and connect several handlers
         bus.add_signal_watch()
-        bus.enable_sync_message_emission()
         bus.connect('message::eos', WeakMethod(self, '_on_eos'))
         bus.connect('message::error', WeakMethod(self, '_on_error'))
         bus.connect('message::element', WeakMethod(self, '_on_message_element'))
         bus.connect('message::state-changed', WeakMethod(self, '_on_state_changed'))
-        bus.connect('sync-message::element', WeakMethod(self, '_on_sync_message'))
 
-        # Create elements
         for name, location in list(self.files.items()):
             logger.info('playing %r', location)
             src = Gst.ElementFactory.make('filesrc', 'src-' + name)
             src.set_property('location', location)
             dec = Gst.ElementFactory.make('decodebin', 'decode-' + name)
-
-            # Connect handler for 'pad-added' signal
             dec.connect('pad-added', WeakMethod(self, '_on_new_decoded_pad'))
 
-            # Link elements
             self.pipeline.add(src)
             self.pipeline.add(dec)
             src.link(dec)
@@ -108,42 +92,58 @@ class Player(object):
         self.error = None
         return None
 
+    def set_pictures(self, pictures):
+        """Bind Gtk.Picture widgets to the video sinks of the pipeline.
+
+        :param pictures: ``dict`` mapping track identifiers to Gtk.Picture widgets
+        """
+        self.players = pictures
+        if self.pipeline is None:
+            return
+        for name, picture in list(pictures.items()):
+            sink = self.pipeline.get_by_name('sink-' + name)
+            if sink is not None:
+                self.__bind_paintable(name, sink, picture)
+
+    def __bind_paintable(self, name, sink, picture):
+        def on_notify(sink, param):
+            paintable = sink.get_property('paintable')
+            if paintable is not None:
+                picture.set_paintable(paintable)
+                sink.disconnect_by_func(on_notify)
+
+        paintable = sink.get_property('paintable')
+        if paintable is not None:
+            picture.set_paintable(paintable)
+        else:
+            sink.connect('notify::paintable', on_notify)
+
     def get_status(self, timeout=GST_TIMEOUT):
-        """
-        Get the player status
-        """
+        """Get the player status"""
         status = self.pipeline.get_state(timeout)
 
         if status[0] == Gst.StateChangeReturn.ASYNC:
-            logger.error('Timeout getting recorder status, current status: {}'.format(status))
+            logger.error('Timeout getting player status, current status: {}'.format(status))
 
         return status
 
-
     def is_playing(self):
-        """
-        Get True if is playing else False
-        """
+        """Get True if is playing else False"""
         return (self.get_status()[1] == Gst.State.PLAYING)
 
     def get_time(self):
-        """
-        Get the player current time.
-        """
+        """Get the player current time."""
         try:
             clock = self.pipeline.get_clock()
             if clock:
                 return clock.get_time()
         except Exception:
-            # logger.debug("Exception trying to get current time: {}".format(exc))
             pass
 
         return 0
 
     def play(self):
-        """
-        Start to play
-        """
+        """Start to play"""
         logger.info("Player playing")
         if not self.pipeline_complete:
             self.pipeline.set_state(Gst.State.PAUSED)
@@ -151,43 +151,26 @@ class Player(object):
         else:
             self.dispatcher.emit("player-status", PLAYING)
             self.pipeline.set_state(Gst.State.PLAYING)
-        # TODO: This is a WORKAROUND for https://github.com/teltek/Galicaster/issues/456
-        for player in list(self.players.values()):
-            player.set_double_buffered(True)
         return None
 
     def pause(self):
-        """
-        Pause the player
-        """
+        """Pause the player"""
         logger.info("Player paused")
         self.pipeline.set_state(Gst.State.PAUSED)
         self.dispatcher.emit("player-status", PAUSED)
         self.get_status()
-        # TODO: This is a WORKAROUND for https://github.com/teltek/Galicaster/issues/456
-        for player in list(self.players.values()):
-            player.set_double_buffered(False)
 
     def stop(self):
-        """
-        Stop the player
-
-        Pause the reproduction and seek to begin
-        """
-        logger.info("Player stoped")
+        """Stop the player: pause and seek to the beginning"""
+        logger.info("Player stopped")
         self.pipeline.set_state(Gst.State.PAUSED)
         self.seek(0)
         self.dispatcher.emit("player-status", STOPPED)
         self.get_status()
-        # TODO: This is a WORKAROUND for https://github.com/teltek/Galicaster/issues/456
-        for player in list(self.players.values()):
-            player.set_double_buffered(False)
         return None
 
     def quit(self):
-        """
-        Close the pipeline
-        """
+        """Close the pipeline"""
         logger.info("Player deleted")
         self.pipeline.set_state(Gst.State.NULL)
         self.dispatcher.emit("player-status", STOPPED)
@@ -195,14 +178,9 @@ class Player(object):
         return None
 
     def seek(self, pos, recover_state=False):
-        """
-        Seek the player
-
-        param: pos time in nanoseconds
-        """
+        """Seek the player. pos is a time in nanoseconds."""
         result = self.pipeline.seek(1.0,
                                     Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
-                                    # REVIEW sure about ACCURATE
                                     Gst.SeekType.SET, pos,
                                     Gst.SeekType.NONE, -1)
         if recover_state and self.get_status()[1] == Gst.State.PAUSED:
@@ -222,7 +200,7 @@ class Player(object):
         return self.audio_sink.get_property('volume')
 
     def set_volume(self, volume):
-        if self.audio_sink != None:
+        if self.audio_sink is not None:
             self.audio_sink.set_property('volume', volume)
 
     def _on_state_changed(self, bus, message):
@@ -235,14 +213,12 @@ class Player(object):
         name = pad.query_caps(None).to_string()
         element_name = element.get_name()[7:]
         logger.info('new decoded pad: %r in %r', name, element_name)
-        sink = None
 
         if self.error:
             logger.warning('There was an error, the decoded pad will be ignored: %r in %r', name, element_name)
             return None
 
         if name.startswith('audio/'):
-            # if element_name == 'presenter' or len(self.files) == 1:
             if not self.has_audio:
                 self.has_audio = True
                 audioconvert = Gst.ElementFactory.make('audioconvert', 'audioconvert')
@@ -252,7 +228,7 @@ class Player(object):
 
                 vumeter = Gst.ElementFactory.make('level', 'level')
                 vumeter.set_property('message', True)
-                vumeter.set_property('interval', 100000000)  # 100 ms
+                vumeter.set_property('interval', 100000000)
                 self.pipeline.add(vumeter)
                 audioconvert.link(vumeter)
                 vumeter.set_state(Gst.State.PAUSED)
@@ -266,17 +242,23 @@ class Player(object):
             vconvert = Gst.ElementFactory.make('videoconvert', 'vconvert-' + element_name)
             self.pipeline.add(vconvert)
 
-            sink = Gst.ElementFactory.make('xvimagesink', 'sink-' + element_name)
+            if Gst.ElementFactory.find('gtk4paintablesink') is not None:
+                sink = Gst.ElementFactory.make('gtk4paintablesink', 'sink-' + element_name)
+            else:
+                logger.warning("gtk4paintablesink not available, using fakesink for playback of %r", element_name)
+                sink = Gst.ElementFactory.make('fakesink', 'sink-' + element_name)
             sink.set_property('force-aspect-ratio', True)
             self.pipeline.add(sink)
 
             pad.link(vconvert.get_static_pad('sink'))
             vconvert.link(sink)
             vconvert.set_state(Gst.State.PAUSED)
-
             assert sink.set_state(Gst.State.PAUSED)
 
-        return sink
+            if element_name in self.players:
+                GObject.idle_add(self.__bind_paintable, element_name, sink, self.players[element_name])
+
+        return None
 
     def _on_eos(self, bus, msg):
         logger.info('Player EOS')
@@ -288,31 +270,6 @@ class Player(object):
         logger.error(self.error)
         self.dispatcher.emit("player-status", ERRORED)
         self.quit()
-
-    def _prepare_window_handler(self, gtk_player, message):
-        Gdk.Display.get_default().sync()
-        message.src.set_window_handle(gtk_player.get_property('window').get_xid())
-        message.src.set_property('force-aspect-ratio', True)
-
-    def _on_sync_message(self, bus, message):
-        if message.get_structure() is None:
-            return
-        if message.get_structure().get_name() == 'prepare-window-handle':
-            name = message.src.get_property('name')[5:]
-
-            logger.debug("on sync message 'prepare-window-handle' %r", name)
-
-            try:
-                gtk_player = self.players[name]
-                if not isinstance(gtk_player, Gtk.DrawingArea):
-                    raise TypeError()
-                GObject.idle_add(self._prepare_window_handler, gtk_player, message)
-
-            except TypeError:
-                logger.error('players[%r]: need a %r; got a %r: %r' % (
-                    name, Gtk.DrawingArea, type(gtk_player), gtk_player))
-            except KeyError:
-                pass
 
     def _on_message_element(self, bus, message):
         if message.get_structure().get_name() == 'level':
@@ -349,7 +306,6 @@ class Player(object):
         return True
 
     def __get_duration_and_run(self):
-        # choose lighter file
         minsize = location = None
         for key, value in list(self.files.items()):
             size = os.path.getsize(value)

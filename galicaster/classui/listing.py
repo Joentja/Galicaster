@@ -60,6 +60,10 @@ class ListingClassUI(Gtk.Box):
         refresh.connect('clicked', lambda b: self.refresh())
         top.append(refresh)
 
+        self.play_button = Gtk.Button(label=_("Play"))
+        self.play_button.connect('clicked', self.on_play)
+        top.append(self.play_button)
+
         self.ingest_button = Gtk.Button(label=_("Ingest"))
         self.ingest_button.connect('clicked', self.on_ingest)
         top.append(self.ingest_button)
@@ -120,6 +124,7 @@ class ListingClassUI(Gtk.Box):
 
     def on_selection_changed(self, selection):
         has = self.get_selected_mp() is not None
+        self.play_button.set_sensitive(has)
         self.ingest_button.set_sensitive(has and self.conf.get_boolean('ingest', 'active'))
 
     def populate_treeview(self):
@@ -144,6 +149,11 @@ class ListingClassUI(Gtk.Box):
 
     def refresh_row_from_mp_id(self, origin, code, mp, success=None, exc=None):
         self.refresh()
+
+    def on_play(self, button):
+        mp = self.get_selected_mp()
+        if mp:
+            self.dispatcher.emit('play-list', mp)
 
     def on_ingest(self, button):
         mp = self.get_selected_mp()
@@ -180,7 +190,7 @@ class ListingClassUI(Gtk.Box):
             self.refresh()
 
     def on_double_click(self, treeview, path, column):
-        self.on_info(None)
+        self.on_play(None)
 
     def resize(self):
         return True

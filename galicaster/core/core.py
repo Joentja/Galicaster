@@ -17,12 +17,14 @@ from galicaster.core import context
 from galicaster.utils.dbusservice import DBusService
 from galicaster.classui.recorderui import RecorderClassUI
 from galicaster.classui.listing import ListingClassUI
+from galicaster.classui.playerui import PlayerClassUI
 
 logger = context.get_logger()
 
 PAGES = {
     'REC': 0,
-    'MMA': 1
+    'MMA': 1,
+    'PLA': 2
 }
 
 PAGES_LOADED = []
@@ -61,6 +63,11 @@ class Main():
             # Media Manager (recordings view)
             self.listing = ListingClassUI()
             self.insert_page(self.listing, 'MMA')
+
+        if 'player' in self.modules:
+            # Player
+            self.player = PlayerClassUI()
+            self.insert_page(self.player, 'PLA')
 
         self.window.start()
 

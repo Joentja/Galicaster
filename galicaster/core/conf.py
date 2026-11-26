@@ -515,6 +515,7 @@ class Conf(object): # TODO list get and other ops arround profile
 
         if self.get_boolean('basic', 'admin'):
             modules.append('media_manager')
+            modules.append('player')
 
         if self.get_boolean('ingest', 'active'):
             modules.append('ocservice')
