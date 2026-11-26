@@ -18,7 +18,10 @@ Functional tests for `galicaster.functional.module` module.
 from unittest import TestCase
 from nose.plugins.attrib import attr
 from galicaster.core.conf import Conf
-from dogtail.config import config
+try:
+    from dogtail.config import config
+except ValueError:
+    config = None
 from tests import get_resource
 import datetime
 import time
