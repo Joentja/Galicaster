@@ -33,8 +33,6 @@ from galicaster.classui.managerui import ManagerUI
 from galicaster.classui import get_ui_path, message
 
 
-Gdk.threads_init()
-
 from galicaster.player.player import INIT
 from galicaster.player.player import READY
 from galicaster.player.player import PLAYING

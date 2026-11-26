@@ -195,7 +195,7 @@ class TestFunctions(TestCase):
         track['videosink'] = 'novideosink'
         error, valid_track = validator.validate_track(track)
         self.assertNotEqual(error, None)
-        self.assertEqual(valid_track['videosink'], 'xvimagesink')
+        self.assertEqual(valid_track['videosink'], 'gtk4paintablesink')
 
 
     def test_validate_list(self):
