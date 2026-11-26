@@ -22,6 +22,19 @@ from galicaster.core import context
 
 conf = context.get_conf()
 
+def get_screenshot_as_pixbuffer():
+    """makes a screenshot of the screen, yields GdkPixbuf"""
+    import pyautogui
+    from gi.repository import GdkPixbuf
+    shot = pyautogui.screenshot()
+    data = shot.convert('RGBA').tobytes()
+    return GdkPixbuf.Pixbuf.new_from_data(data, GdkPixbuf.Colorspace.RGB, True,
+                                          8, shot.width, shot.height, shot.width * 4)
+
+def get_screenshot_as_pillow():
+    import pyautogui
+    return pyautogui.screenshot()
+
 def get_footer():
     return "Galicaster " + __version__ + "  -  " + conf.get_hostname()
 

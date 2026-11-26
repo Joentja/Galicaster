@@ -253,6 +253,10 @@ def get_videosink(videosink='gtk4paintablesink', name='gc-preview', properties =
         logger.warning("Unknown video sink {}, falling back to gtk4paintablesink".format(videosink))
         videosink = 'gtk4paintablesink'
 
+    if videosink == 'gtk4paintablesink' and Gst.ElementFactory.find('gtk4paintablesink') is None:
+        logger.warning("gtk4paintablesink not available (gstreamer1.0-gtk4 not installed), using fakesink for preview")
+        videosink = 'fakesink'
+
     props_str = get_properties(videosink, properties, VIDEOSINK_PROPERTIES)
     if videosink == "fpsdisplaysink":
         xvimagesink_props = get_properties('xvimagesink', {}, VIDEOSINK_PROPERTIES)

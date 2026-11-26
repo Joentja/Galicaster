@@ -18,7 +18,7 @@ Unit tests for `galicaster.core.context` module.
 
 from unittest import TestCase
 from galicaster.core.dispatcher import Dispatcher
-from gi.repository import Gtk
+from gi.repository import GLib
 from gi.repository import GObject
 
 called = False
@@ -31,7 +31,7 @@ class TestFunctions(TestCase):
     def callback_ui(self, emisor, value):
         global called
         called = True
-        Gtk.main_quit()
+        self.loop.quit()
         
     def emit_signal(self, dispatcher, signal, *args):
         dispatcher.emit(signal, args)
@@ -55,8 +55,9 @@ class TestFunctions(TestCase):
         dispatcher.connect_ui('pr', self.callback_ui)
         obj = {'called': False}
 
+        self.loop = GLib.MainLoop()
         timeout_id = GObject.timeout_add_seconds(1, self.emit_signal, dispatcher, 'pr', obj)
-        Gtk.main()
+        self.loop.run()
         self.assertTrue(called)
 
 

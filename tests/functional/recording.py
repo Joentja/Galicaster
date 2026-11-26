@@ -20,7 +20,10 @@
 # First, enable accessibility support in your GNOME session with:
 #  gsettings set org.gnome.desktop.interface toolkit-accessibility true
 
-from dogtail.utils import run
+try:
+    from dogtail.utils import run
+except ValueError:
+    run = None
 
 import sys
 from sys import exit
