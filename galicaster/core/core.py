@@ -14,6 +14,7 @@
 import os
 from galicaster import __version__
 from galicaster.core import context
+from galicaster import plugins
 from galicaster.utils.dbusservice import DBusService
 from galicaster.classui.recorderui import RecorderClassUI
 from galicaster.classui.listing import ListingClassUI
@@ -46,6 +47,8 @@ class Main():
 
     def load_modules(self):
         self.window = context.get_mainwindow()
+        # Load plugins after loading the main window
+        plugins.init()
 
         # Recorder
         self.recorder = RecorderClassUI()

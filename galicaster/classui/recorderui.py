@@ -148,6 +148,14 @@ class RecorderClassUI(Gtk.Box):
         profile_button.connect('clicked', self.on_profile)
         top.append(profile_button)
 
+        events_button = Gtk.Button(label=_("Events"))
+        events_button.connect('clicked', self.show_next)
+        top.append(events_button)
+
+        self.editbutton = Gtk.Button(label=_("Edit"))
+        self.editbutton.connect('clicked', self.on_edit_meta)
+        top.append(self.editbutton)
+
         mma_button = Gtk.Button(label=_("Recordings"))
         mma_button.connect('clicked', self.change_mode)
         top.append(mma_button)
@@ -200,6 +208,13 @@ class RecorderClassUI(Gtk.Box):
 
         self.audio_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.side_panel.append(self.audio_box)
+
+        self.tools_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.side_panel.append(self.tools_box)
+
+    def add_tool(self, widget):
+        """Append a widget (e.g. from a plugin) to the side panel"""
+        self.tools_box.append(widget)
 
     # ---- previews ----
 
@@ -355,6 +370,28 @@ class RecorderClassUI(Gtk.Box):
             self.profile_dialog = ProfileDialog(parent=context.get_mainwindow())
         self.profile_dialog.present()
 
+    def on_edit_meta(self, button):
+        from galicaster.classui.metadata import MetadataClass
+        if self.recorder.current_mediapackage and self.recorder.current_mediapackage.manual:
+            MetadataClass(self.recorder.current_mediapackage, parent=context.get_mainwindow())
+
+    def show_next(self, button=None):
+        mps = self.repo.get_next_mediapackages(5)
+        next_recs = []
+        for mp in mps:
+            rec_time = mp.getLocalDate()
+            if rec_time.date() == datetime.date.today():
+                date = _("Today")
+            elif rec_time.date() == (datetime.date.today() + datetime.timedelta(1)):
+                date = _("Tomorrow")
+            else:
+                date = mp.getDate().strftime("%d %b %Y")
+            next_recs.append({'title': mp.title,
+                              'date': date,
+                              'duration': rec_time.time().strftime("%H:%M")})
+        text = {'title': _('Next Recordings'), 'next_recs': next_recs}
+        message.PopUp(message.NEXT_REC, text, context.get_mainwindow())
+
     def change_mode(self, button):
         """GUI callback: switch to the recordings (media manager) page"""
         self.dispatcher.emit("action-view-change", PAGE_MMA)
@@ -488,12 +525,15 @@ class RecorderClassUI(Gtk.Box):
             self.recbutton.set_sensitive(bool(self.allow_start or self.allow_manual))
             self.pausebutton.set_sensitive(False)
             self.stopbutton.set_sensitive(False)
+            self.editbutton.set_sensitive(False)
 
         elif status == RECORDING_STATUS:
             GObject.timeout_add(500, self.recording_info_timeout)
             self.recbutton.set_sensitive(False)
             self.pausebutton.set_sensitive(bool(self.allow_pause and self.recorder.is_pausable()))
             self.stopbutton.set_sensitive(bool(self.allow_stop or self.allow_manual))
+            self.editbutton.set_sensitive(bool(self.recorder.current_mediapackage
+                                             and self.recorder.current_mediapackage.manual))
 
         elif status == PAUSED_STATUS:
             self.recbutton.set_sensitive(False)
