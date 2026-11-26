@@ -120,3 +120,6 @@ class ProfileDialog(Gtk.Window):
     def close(self, *args):
         self.hide()
         return True
+
+
+ProfileUI = ProfileDialog
