@@ -231,6 +231,7 @@ class Switcher(Gst.Bin):
 
 
 VIDEOSINK_PROPERTIES = {
+    'gtk4paintablesink': {'async': 'false', 'sync': 'false'},
     'xvimagesink'     : {'async': 'false', 'sync': 'false', 'qos': 'true', 'force-aspect-ratio': 'true'},
     'ximagesink'      : {'async': 'false', 'sync': 'false', 'qos': 'true', 'force-aspect-ratio': 'true'},
     'autovideosink'   : {'async': 'false', 'sync': 'false'},
@@ -245,8 +246,12 @@ AUDIOSINK_PROPERTIES = {
 }
 
 
-def get_videosink(videosink='xvimagesink', name='gc-preview', properties = {}):
+def get_videosink(videosink='gtk4paintablesink', name='gc-preview', properties = {}):
     logger.debug("Video sink: {} -> {}".format(name, videosink))
+
+    if videosink not in VIDEOSINK_PROPERTIES and videosink != 'fpsdisplaysink':
+        logger.warning("Unknown video sink {}, falling back to gtk4paintablesink".format(videosink))
+        videosink = 'gtk4paintablesink'
 
     props_str = get_properties(videosink, properties, VIDEOSINK_PROPERTIES)
     if videosink == "fpsdisplaysink":

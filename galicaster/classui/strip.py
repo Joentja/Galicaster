@@ -11,92 +11,88 @@
 # or send a letter to Creative Commons, 171 Second Street, Suite 300,
 # San Francisco, California, 94105, USA.
 """
-Top bar widget including back to previous page button and Galicaster logo
+Status strip shown at the bottom of the main window (GTK4)
 """
 
-from gi.repository import Gtk, GdkPixbuf
+from gi.repository import Gtk
 
 from galicaster.core import context
-from galicaster.classui import get_ui_path, get_image_path
 from galicaster.classui import message
+from galicaster.utils import readable
 from galicaster.utils.i18n import _
-from galicaster.utils.resize import resize_button
+
 
 class StripUI(Gtk.Box):
-    """
-    GUI for the Welcoming - Distribution Screen
-    """
-    __gtype_name__ = 'StripUI'
+    def __init__(self, back_page=None):
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=18)
+        self.set_margin_top(4)
+        self.set_margin_bottom(4)
+        self.set_margin_start(12)
+        self.set_margin_end(12)
 
-    def __init__(self, back_page ):
-        """
-        Creates a top bar widget with the Galicaster Logo.
-        If a back_page is provided - the tab number on the Core notebook wiget - it will show a back to the previous page button.
-        """
-        Gtk.Box.__init__(self)
+        self.repo = context.get_repository()
+        self.conf = context.get_conf()
+        self.dispatcher = context.get_dispatcher()
 
-        builder = Gtk.Builder()
-        builder.add_from_file(get_ui_path('strip.glade'))
-        self.builder = builder
-        self.strip = builder.get_object("stripbox")
-        button = builder.get_object("previousbutton")
-        button.connect("clicked", self.emit_signal, "action-view-change", back_page)
-        about = builder.get_object("aboutevent")
-        about.connect("button-press-event", self.show_about_dialog)
+        self.space_label = Gtk.Label(xalign=0)
+        self.net_label = Gtk.Label(xalign=0)
+        self.ops_label = Gtk.Label(xalign=0)
+        self.agent_label = Gtk.Label(xalign=0)
 
-        self.pack_start(self.strip,True,True,0)
+        about = Gtk.Button(label=_("About"))
+        about.connect('clicked', self.show_about_dialog)
 
-    def emit_signal(origin, button, signal, value):
-        """Connect a button to a signal emission"""
-        dispatcher = context.get_dispatcher()
-        dispatcher.emit(signal, value)
+        self.append(self.space_label)
+        self.append(self.net_label)
+        self.append(self.ops_label)
+        self.append(self.agent_label)
+        filler = Gtk.Box()
+        filler.set_hexpand(True)
+        self.append(filler)
+        self.append(about)
 
-    def show_about_dialog(self, origin, button):
-        """GUI callback Pops up de About Dialog"""
+        self.dispatcher.connect_ui('opencast-status', self.set_net)
+        self.dispatcher.connect_ui('operation-started', self.set_ops)
+        self.dispatcher.connect_ui('operation-stopped', self.set_ops)
+        self.dispatcher.connect_ui('timer-short', self.refresh_space)
+        self.dispatcher.connect_ui('init', self.refresh_space)
+        self.refresh()
 
-        text = {"title" : _("About"),
-                    "main" : ''}
+    def refresh(self):
+        self.refresh_space()
+        self.agent_label.set_text(self.conf.get_hostname())
+        if not self.conf.get_boolean('ingest', 'active'):
+            self.set_net(None, None)
+
+    def refresh_space(self, *args):
+        freespace = self.repo.get_free_space()
+        hours = int(freespace / 4000000000.0)
+        self.space_label.set_text(_("{0} ({1} hours left)").format(
+            readable.size(freespace), hours))
+        return True
+
+    def set_net(self, origin, status=None):
+        if status is True:
+            self.net_label.set_text(_("Opencast: Up"))
+            self.net_label.set_css_classes(['green_coloured'])
+        elif status is False:
+            self.net_label.set_text(_("Opencast: Down"))
+            self.net_label.set_css_classes(['red_coloured'])
+        else:
+            self.net_label.set_text(_("Opencast: Disabled"))
+            self.net_label.set_css_classes(['gray_coloured'])
+
+    def set_ops(self, origin, code=None, mp=None, success=None, exc=None):
+        from galicaster.core.worker import JOB_NAMES
+        from galicaster.mediapackage.mediapackage import op_status
+        if code and mp is not None:
+            status = op_status[mp.getOpStatus(code)]
+            self.ops_label.set_text("{0}: {1}".format(JOB_NAMES.get(code, code), status))
+
+    def show_about_dialog(self, button):
+        text = {"title": _("About Galicaster"),
+                "main": _("Galicaster capture agent (GTK4 rebuild)")}
         message.PopUp(message.ABOUT, text, context.get_mainwindow())
 
     def resize(self):
-        """Adapts GUI elements to the screen size"""
-        size = context.get_mainwindow().get_size()
-        anchura = size[0]
-        k = anchura / 1920.0
-
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(get_image_path('logo.svg'))
-        pixbuf = pixbuf.scale_simple(
-            int(pixbuf.get_width()*k*0.5),
-            int(pixbuf.get_height()*k*0.5),
-            GdkPixbuf.InterpType.BILINEAR)
-        align2 = self.builder.get_object("top_align")
-
-        logo2 = self.builder.get_object("logo2")
-
-        logo2.set_from_pixbuf(pixbuf)
-        align2.set_padding(int(k*51),int(k*30),0,0)
-
-        for name in ["previousbutton"]:
-            button = self.builder.get_object(name)
-            button.set_property("width-request", int(k*70) )
-            button.set_property("height-request", int(k*70) )
-
-            resize_button(button,size_image=k*56)
-
-    def set_logo(self):
-        size = context.get_mainwindow().get_size()
-        anchura = size[0]
-        k = anchura / 1920.0
-
-        lcompany = Gtk.Image()
-        icompany=GdkPixbuf.Pixbuf.new_from_file(get_image_path("teltek.svg"))
-        icompany = icompany.scale_simple(
-            int(icompany.get_width()*k),
-            int(icompany.get_height()*k),
-            GdkPixbuf.InterpType.BILINEAR)
-        lcompany.set_from_pixbuf(icompany)
-
-        buttonbox = self.builder.get_object("hbuttonbox1")
-        buttonbox.pack_start(lcompany,True,True,0)
-        self.builder.get_object("previousbutton").destroy()
-        buttonbox.reorder_child(lcompany,0)
+        pass

@@ -11,33 +11,22 @@
 # or send a letter to Creative Commons, 171 Second Street, Suite 300,
 # San Francisco, California, 94105, USA.
 
-
-from gi.repository import GLib
-from gi.repository import Gdk
-GLib.threads_init()
-Gdk.threads_init()
-
 import os
 from galicaster import __version__
 from galicaster.core import context
-from galicaster import plugins
-
 from galicaster.utils.dbusservice import DBusService
 from galicaster.classui.recorderui import RecorderClassUI
 from galicaster.classui.listing import ListingClassUI
-from galicaster.classui.playerui import PlayerClassUI
-from galicaster.classui.distrib import DistribUI
 
 logger = context.get_logger()
 
 PAGES = {
-    'REC' : 0,
-    'MMA': 1,
-    'PLA': 2,
-    'DIS': 3
+    'REC': 0,
+    'MMA': 1
 }
 
 PAGES_LOADED = []
+
 
 class Main():
     def __init__(self):
@@ -55,8 +44,6 @@ class Main():
 
     def load_modules(self):
         self.window = context.get_mainwindow()
-        # Load plugins after loading the main window (fixes a problem with the plugin 'nocursor')
-        plugins.init()
 
         # Recorder
         self.recorder = RecorderClassUI()
@@ -71,23 +58,15 @@ class Main():
         if 'media_manager' in self.modules:
             self.dispatcher.connect('action-view-change', self.change_mode)
 
-            # Distribution
-            self.distribution = DistribUI()
-            self.insert_page(self.distribution, 'DIS')
-
-            # Media Manager
-            self.listing  = ListingClassUI()
+            # Media Manager (recordings view)
+            self.listing = ListingClassUI()
             self.insert_page(self.listing, 'MMA')
-
-        if 'player' in self.modules:
-            self.player = PlayerClassUI()
-            self.insert_page(self.player, 'PLA')
 
         self.window.start()
 
         # Set home page
-        homepage = self.conf.get_choice('basic', 'homepage', ['rec', 'pla', 'mma', 'dis'], 'mma').upper()
-        if not 'media_manager' in self.modules or PAGES[homepage] not in PAGES_LOADED:
+        homepage = self.conf.get_choice('basic', 'homepage', ['rec', 'pla', 'mma', 'dis'], 'rec').upper()
+        if 'media_manager' not in self.modules or PAGES.get(homepage) not in PAGES_LOADED:
             logger.info("Set REC as home page (default value), modules loaded: {}".format(self.modules))
             self.window.set_current_page(PAGES['REC'])
             self.recorder.block()
@@ -101,7 +80,6 @@ class Main():
         context.get_heartbeat().init_timer()
         self.dispatcher.emit("init")
 
-
     def insert_page(self, classui, name):
         self.window.insert_page(classui, name, PAGES[name])
         PAGES_LOADED.append(PAGES[name])
@@ -113,9 +91,6 @@ class Main():
         old_page = self.window.get_current_page()
         self.window.set_current_page(page)
         self.dispatcher.emit('view-changed', old_page, page)
-
-    def check_net(self, origin, data):
-        self.state.net = data
 
     def change_cwd(self):
         repo = context.get_repository()

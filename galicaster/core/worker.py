@@ -100,7 +100,7 @@ class Worker(object):
         self.jobs = queue.Queue()
 
         self.t = T(self.jobs)
-        self.t.setDaemon(True)
+        self.t.daemon = True
         self.t.start()
 
         self.dispatcher.connect('timer-nightly', self.exec_nightly)

@@ -14,15 +14,14 @@
 
 import argparse
 import sys
-# debug
-# import traceback
 
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
-gi.require_version('Gtk', '3.0')
+gi.require_version('Gtk', '4.0')
 
 from gi.repository import Gtk     # noqa: ignore=E402
+from gi.repository import Gio     # noqa: ignore=E402
 from gi.repository import GLib    # noqa: ignore=E402
 from gi.repository import Gst     # noqa: ignore=E402
 
@@ -31,53 +30,48 @@ from galicaster.core import core  # noqa: ignore=E402
 from galicaster.core import context
 from galicaster.utils.dbusservice import AlreadyRunning
 
+
+class GalicasterApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id='es.teltek.Galicaster',
+                         flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.gc = None
+
+    def do_activate(self):
+        Gst.init(None)
+        try:
+            window = context.get_mainwindow()
+            window.set_application(self)
+            self.gc = core.Main()
+        except AlreadyRunning as exc:
+            print("Error starting Galicaster: {0}".format(exc))
+            self.quit()
+            return
+        except Exception as exc:
+            msg = "Error starting Galicaster: {0}".format(exc)
+            print(msg)
+            logger = context.get_logger()
+            logger and logger.error(msg)
+            context.get_dispatcher().emit("quit")
+            self.quit()
+            return
+
+        def handler(app):
+            print("SIGINT sent. Interrupted by user!")
+            app.gc and app.gc.emit_quit()
+            app.quit()
+            return GLib.SOURCE_REMOVE
+
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, 2, handler, self)
+
+
 def main(args):
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--version', action='version', version='Galicaster {version}'.format(version=__version__))
     parser.parse_args(args=args[1:])
-    try:
-        Gst.init(None)
-        gc = core.Main()
-        # Bug with Gtk.main() not raising a KeyboardInterrupt(SIGINT) exception
-        # https://bugzilla.gnome.org/show_bug.cgi?id=622084
-        # Calling GObject.MainLoop.run() instead could be an option.
-        # Sadly, Gtk.main_quit() does not work with it.
-        # This workaround will stay until a better solution
-        # is found or the bug is fixed.
+    app = GalicasterApp()
+    return app.run(None)
 
-        def handler(gc):
-            print("SIGINT sent. Interrupted by user!")
-            gc.quit()
-        GLib.unix_signal_add(GLib.PRIORITY_HIGH, 2, handler, gc)  # 2 = SIGINT
-        Gtk.main()
-    except KeyboardInterrupt:
-        gc.emit_quit()
-        print("Interrupted by user!")
-
-    except AlreadyRunning as exc:
-        #Added custom exception when galicaster it's already running
-        msg = "Error starting Galicaster: {0}".format(exc)
-        print(msg)
-
-        d = context.get_dispatcher()
-        d.emit("quit")
-        return -2
-
-    except Exception as exc:
-        # debug
-        # print traceback.format_exc()
-
-        msg = "Error starting Galicaster: {0}".format(exc)
-        print(msg)
-
-        logger = context.get_logger()
-        logger and logger.error(msg)
-
-        d = context.get_dispatcher()
-        d.emit("quit")
-        return -1
-
-    return 0
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

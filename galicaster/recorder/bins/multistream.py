@@ -34,10 +34,11 @@ pipestr = (  # video source
            ' videoconvert ! queue ! gc-multi-enc ! queue ! gc-multi-muxer ! '
            ' queue ! filesink name=gc-multi-sink async=false'
 
-           # audio source
+           # audio source (embedded audio of the capture device)
            ' pulsesrc name=gc-audio-src ! '
            ' queue name=gc-min-threshold-time gc-max-size-time '
            ' gc-max-size-buffers gc-max-size-bytes gc-leaky ! '
+           ' volume name=gc-audio-volumeinput ! '
            ' audioamplify name=gc-audio-amplify amplification=1 !'
            ' audioconvert ! audio/x-raw,channels=gc-audio-channels !'
 
@@ -127,9 +128,9 @@ class GCmultistream(Gst.Bin, base.Base):
             },
         "videosink": {
             "type": "select",
-            "default": "xvimagesink",
-            "options": ["xvimagesink", "ximagesink", "autovideosink",
-                        "fpsdisplaysink", "fakesink"],
+            "default": "gtk4paintablesink",
+            "options": ["gtk4paintablesink", "xvimagesink", "ximagesink", "autovideosink",
+                        "fakesink"],
             "description": "Video sink",
         },
         "io-mode": {
@@ -164,6 +165,12 @@ class GCmultistream(Gst.Bin, base.Base):
             "default": 1.0,
             "range": (1.0, 10),
             "description": "Audio amplification",
+            },
+        "volume": {
+            "type": "float",
+            "default": 1.0,
+            "range": (0, 2),
+            "description": "Audio input volume",
             },
         "audioencoder": {
             "type": "text",
@@ -279,6 +286,18 @@ class GCmultistream(Gst.Bin, base.Base):
             ampli = self.get_by_name("gc-audio-amplify")
             ampli.set_property("amplification",
                                float(self.options["amplification"]))
+
+        if "volume" in self.options:
+            vol = self.get_by_name("gc-audio-volumeinput")
+            vol.set_property("volume", float(self.options["volume"]))
+
+    def set_input_volume(self, value):
+        element = self.get_by_name("gc-audio-volumeinput")
+        element.set_property("volume", float(value))
+
+    def get_input_volume(self):
+        element = self.get_by_name("gc-audio-volumeinput")
+        return element.get_property("volume")
 
         if self.options["delay"] > 0.0:
             delay = float(self.options["delay"])

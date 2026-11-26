@@ -115,6 +115,13 @@ class Base(object):
     def prepare(self, bus=None):
         pass
 
+    def set_input_volume(self, value):
+        self.logger.warning("set_input_volume not implemented")
+
+    def get_input_volume(self):
+        self.logger.warning("get_input_volume not implemented")
+        return None
+
     def disable_input(self):
         self.logger.warning("disable_input not implemented")
 
