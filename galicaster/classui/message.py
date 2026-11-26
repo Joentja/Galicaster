@@ -1,3 +1,8 @@
+# -*- coding:utf-8 -*-
+# Galicaster, Multistream Recorder and Player
+#
+#       galicaster/classui/message
+#
 # Copyright (c) 2011, Teltek Video Research <galicaster@teltek.es>
 #
 # This work is licensed under the Creative Commons Attribution-
@@ -6,38 +11,28 @@
 # or send a letter to Creative Commons, 171 Second Street, Suite 300,
 # San Francisco, California, 94105, USA.
 """
-Basic Dialog Messag UI
+Basic Dialog Message UI (GTK4, built in code)
 """
 
-import sys
-
-from gi.repository import Gtk, Gdk, GdkPixbuf
-from gi.repository import GObject
-from galicaster.classui import get_image_path, get_ui_path
-from galicaster.classui.elements.message_header import Header
-from galicaster.recorder.service import ERROR_STATUS
+from gi.repository import Gtk
 
 from galicaster.utils.i18n import _
 from galicaster.core import context
 
 TEXT = {'title': None, 'main': None, 'text': None}
 
-INFO = 'help.glade'
-ERROR = 'error.glade'
-WARN_STOP = 'stop.glade'
-WARN_QUIT = 'quit.glade'
-WARN_DELETE = 'delete.glade'
-WARN_OK = 'okwarning.glade'
-OPERATIONS = 'operations.glade'
-ABOUT = 'about.glade'
-LOCKSCREEN = 'lockscreen.glade'
-MP_INFO = 'info.glade'
-NEXT_REC = 'next.glade'
+INFO = 'info'
+ERROR = 'error'
+WARN_STOP = 'stop'
+WARN_QUIT = 'quit'
+WARN_DELETE = 'delete'
+WARN_OK = 'okwarning'
+OPERATIONS = 'operations'
+ABOUT = 'about'
+LOCKSCREEN = 'lockscreen'
+MP_INFO = 'mp_info'
+NEXT_REC = 'next_rec'
 
-# FIXME
-QUESTION = Gtk.STOCK_DIALOG_QUESTION
-
-#ACTION = Gtk.STOCK_DIALOG_QUESTION
 POSITIVE = [
     Gtk.ResponseType.ACCEPT,
     Gtk.ResponseType.OK,
@@ -67,415 +62,122 @@ OPERATION_NAMES = {
 
 instance = None
 
-class PopUp(Gtk.Widget):
-    """Handle a pop up for warnings and questions"""
-    __gtype_name__ = 'PopUp'
+ICONS = {
+    INFO: 'dialog-information',
+    ERROR: 'dialog-error',
+    WARN_STOP: 'dialog-warning',
+    WARN_QUIT: 'dialog-warning',
+    WARN_DELETE: 'dialog-warning',
+    WARN_OK: 'dialog-warning',
+    ABOUT: 'dialog-information',
+    NEXT_REC: 'dialog-information',
+    MP_INFO: 'dialog-information',
+    OPERATIONS: 'dialog-question',
+    LOCKSCREEN: 'dialog-password',
+}
+
+
+class PopUp(object):
+    """Handle a pop up for warnings and questions (GTK4)"""
 
     def __init__(self, message=None, text=TEXT, parent=None,
                  buttons=None, response_action=None, close_on_response=True,
-                 show=[], close_parent = False, close_before_response_action = False):
-        """ Initializes the Gtk.Dialog from its GLADE
+                 show=[], close_parent=False, close_before_response_action=False):
+        """Builds a modal dialog in code.
         Args:
-            message (str): type of message (See above constants)
-            text (Dict{str:str}): Labels of the texts that are going to be set.
+            message (str): type of message (see constants above)
+            text (Dict{str:str}): 'title', 'main' and 'text' labels; NEXT_REC also accepts 'next_recs'
             parent (Gtk.Window): main window
-            buttons (Dict{str:str}): button labels to be shown and its responses
-
-        Notes: title key is asociated with the label of the GALICASTER strip.
-                Any other key must be the same as the label id in the Glade.
-
+            buttons: iterable of (label, response_id) pairs
         """
-        # FIXME: Workaround in order to avoid the garbage collector (GC)
         global instance
         instance = self
 
-        #TODO: Remove unused params.
-        # Parse Size proportions
-        #FIXME: Use always as parent context.get_mainwindow()??
-        size = parent.get_size()
         self.response_action = response_action
         self.close_on_response = close_on_response
-        self.close_before_response_action =  close_before_response_action
+        self.close_before_response_action = close_before_response_action
         self.message = message
         self.close_parent = close_parent
-        self.size = size
-        self.wprop = size[0]/1920.0
-        self.hprop = size[1]/1080.0
         self.dispatcher = context.get_dispatcher()
-        # Create dialog
-        self.gui = Gtk.Builder()
-        self.gui.add_from_file(get_ui_path(message))
-        self.gui.connect_signals(self)
 
-        self.dialog = self.configure_ui(text, message, self.gui, parent)
+        self.dialog = Gtk.Window(title=text.get('title') or _("Galicaster"))
+        if parent is not None:
+            self.dialog.set_transient_for(parent)
+        self.dialog.set_modal(True)
+        self.dialog.set_hide_on_close(True)
+        self.dialog.connect('close-request', self.dialog_destroy)
 
-        # Specific glade modifications
-        if message == OPERATIONS:
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        outer.set_margin_top(18)
+        outer.set_margin_bottom(18)
+        outer.set_margin_start(24)
+        outer.set_margin_end(24)
 
-            frames = {'Cancel': {'Cancel' : -2}}
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        icon = Gtk.Image.new_from_icon_name(ICONS.get(message, 'dialog-information'))
+        icon.set_pixel_size(48)
+        header.append(icon)
+        title = Gtk.Label(label=text.get('title') or _("Galicaster"), xalign=0)
+        title.add_css_class('dialog_title')
+        header.append(title)
+        outer.append(header)
 
-            for operation, response in list(buttons.items()):
-                if operation.count('Ingest'):
-                    if 'Ingest' not in frames:
-                        frames['Ingest'] = {}
-                    frames['Ingest'][operation] = response
-                elif operation.count('Side') or operation.count('Export'):
-                    if 'Export' not in frames:
-                        frames['Export'] = {}
-                    frames['Export'][operation] = response
+        if text.get('main'):
+            main = Gtk.Label(label=text['main'], xalign=0, wrap=True)
+            main.add_css_class('dialog_body')
+            outer.append(main)
 
-            self.set_buttons(self.gui, frames)
+        if text.get('text'):
+            scroll = Gtk.ScrolledWindow()
+            scroll.set_min_content_height(120)
+            scroll.set_min_content_width(420)
+            scroll.set_vexpand(True)
+            body = Gtk.Label(label=text['text'], xalign=0, yalign=0, wrap=True, selectable=True)
+            body.add_css_class('dialog_body')
+            scroll.set_child(body)
+            outer.append(scroll)
 
-        elif message == MP_INFO:
-            if 'tracks' in text:
-                grid = self.gui.get_object('tracks_grid')
-                if grid:
-                    self.fill_info(grid, text['tracks'])
-            if 'catalogs' in text:
-                grid = self.gui.get_object('catalogs_grid')
-                if grid:
-                    self.fill_info(grid, text['catalogs'])
+        if message == NEXT_REC and text.get('next_recs'):
+            listbox = Gtk.ListBox()
+            listbox.add_css_class('next_recs')
+            for info in text['next_recs']:
+                row = Gtk.Label(xalign=0)
+                row.set_markup("<b>{title}</b>\t{date}\t{duration}".format(
+                    title=info.get('title', ''), date=info.get('date', ''),
+                    duration=info.get('duration', '')))
+                listbox.append(row)
+            outer.append(listbox)
 
-        elif message == ABOUT:
-            self.set_logos(self.gui)
-            # WORKAROUND (TTK-16472):
-            # In some graphical environments the GtkAboutDialog default buttons would not appear
-            # This blocks Galicaster, as the dialog can't be closed
-            # As a workaround, we add a "Close" button if the dialog buttonbox is empty
-            # A more permanent solution might be crafting the about window manually
-            about_buttonbox = self.gui.get_object("aboutdialog-action_area1")
-            if len(about_buttonbox.get_children()) == 0 :
-                about_buttonbox.get_parent().set_property('visible' ,True)
-                close_button = Gtk.Button().new_with_label(_("Close"))
-                close_button.set_property('visible' ,True)
-                close_button.connect("clicked", self.dialog_destroy)
-                about_buttonbox.pack_start(close_button, False, True, 0)
+        buttons = buttons or (("_OK", Gtk.ResponseType.OK),)
+        if isinstance(buttons, dict):
+            buttons = list(buttons.items())
+        bbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        bbox.set_halign(Gtk.Align.END)
+        for item in buttons:
+            label, response = item[0], item[1]
+            button = Gtk.Button(label=_(label) if not label.startswith('_') else _(label))
+            button.connect('clicked', self.on_dialog_response, response)
+            bbox.append(button)
+        outer.append(bbox)
 
-        elif message == NEXT_REC:
-            if text['next_recs']:
-                self.fill_mp_info(self.gui, text['next_recs'])
-            else:
-                no_recs = self.gui.get_object('no_recordings')
-                if no_recs:
-                    no_recs.show()
+        self.dialog.set_child(outer)
+        self.dialog.present()
 
-        elif message == LOCKSCREEN:
-            for element in show:
-                gtk_obj = self.gui.get_object(element)
-                if gtk_obj:
-                    gtk_obj.show()
-            self.gui.get_object("quitbutton").connect("clicked", context.get_mainwindow().do_quit)
-
-        # Display dialog
-        parent.get_style_context().add_class('shaded')
-        self.dialog.set_transient_for(parent)
-        if message in [ERROR, WARN_QUIT, WARN_STOP, ABOUT, INFO, WARN_DELETE, LOCKSCREEN, MP_INFO]:
-            self.dispatcher.emit("action-audio-disable-msg")
-            self.dialog.show()
-            self.dialog.connect('response', self.on_dialog_response)
-        #elif message == ABOUT:
-        #    #TODO: use on_dialog_response instead of on_about_dialog_response
-        #    self.dialog.show_all()
-        #    self.dialog.connect('response', self.on_about_dialog_response)
-
-        else:
-            self.response = self.dialog.run()
-            self.dialog.destroy()
-            parent.get_style_context().remove_class('shaded')
-
-
-    def configure_ui(self, text, message_type, gui, parent, another=None):
-        """Imports the dialog from the corresponding GLADE and adds some configuration
-        Args:
-            text (Dict{Str:str}): a dictionary with the text to be filled
-            message_type (str): one of the above constants that leads to the appropriate GLADE
-            gui (Gtk.Builder): the builder with the GLADE info
-            parent (Gtk.Window): the Main Window of the application
-            another (Bool): True if dialog_width is small. Otherwise false.
-        Returns:
-            Gtk.Dialog: the dialog with the main body configured
-        """
-
-        image = gui.get_object("image")
-        if image:
-            image.set_pixel_size(int(self.wprop*80))
-
-        title = 'Galicaster'
-
-        # For MP Info PopUP
-        series_shown = False
-
-        for label, content in list(text.items()):
-
-            if label == 'title':
-                title = content
-
-            elif label == 'main':
-                if message_type != INFO:
-                    main = gui.get_object("main")
-                    if main:
-                        main.set_label(text.get('main', ''))
-                else:
-                    help_message = "{}\n{}".format(text.get('main', ''), text.get('text', ''))
-                    textbuffer = gui.get_object('textbuffer')
-                    textbuffer.set_text(help_message)
-
-            elif isinstance(label, str) and content:
-                text_label = gui.get_object(label)
-                if text_label:
-                    text_label.set_label(content)
-                    text_label.show()
-                title_label = gui.get_object('{}_label'.format(label))
-                if title_label:
-                    title_label.show()
-                if label.find('series')>=0 and not series_shown:
-                    series_frame = gui.get_object('series_frame')
-                    series_frame.show()
-                    series_shown = True
-
-        dialog = gui.get_object("dialog")
-
-        dialog.set_type_hint(Gdk.WindowTypeHint.TOOLBAR)
-        dialog.set_skip_taskbar_hint(True)
-        dialog.set_keep_above(False)
-
-        #HEADER
-        strip = Header(size=self.size, title=title)
-        dialog.vbox.pack_start(strip, True, True, 0)
-        dialog.vbox.reorder_child(strip, 0)
-
-        dialog.set_property('width-request', int(self.size[0]/2.5))
-        # relative to screen size
-        if self.size[0]<1300:
-            dialog.set_property('width-request', int(self.size[0]/2.2))
-        if another:
-            dialog.set_property('width-request', int(self.size[0]/1.5))
-
-        if parent != None:
-            dialog_style_context = dialog.get_style_context()
-            window_classes = parent.get_style_context().list_classes()
-            for style_class in window_classes:
-                dialog_style_context.add_class(style_class)
-            dialog.set_position(Gtk.WindowPosition.CENTER_ALWAYS)
-        else:
-            dialog.set_position(Gtk.WindowPosition.CENTER_ALWAYS)
-
-        strip.show()
-
-        return dialog
-
-    def set_buttons(self, gui, frames):
-        """ Show the buttons on the different frames and configure its response.
-        Args:
-            frames (Dict{}): dictionary structure that represents the frames with
-                                the buttons to be shown and its response code.
-            gui (Gtk.Builder): the structure imported from glade
-        """
-        grid = gui.get_object('operations grid')
-        # the different widgets positioned on frame export
-        # FIXME: extensible to grids with different sizes (2x2)
-        # Problem getting the width and height of the grid, non readable porperty
-        export_frame_pos = {
-            0 : { # column number
-                0: None, # row number
-                1: None,
-                },
-            1 : {
-                0: None,
-                1: None,
-                }
-        }
-
-        for frame, operations in list(frames.items()):
-            frame_widget = gui.get_object('{} frame'.format(frame))
-            frame_widget.show()
-            for operation, response in list(operations.items()):
-                button = gui.get_object("{} button".format(operation))
-                button.set_label(OPERATION_NAMES[operation])
-                button.connect("clicked", self.force_response, response)
-                # Fill the export_frame_pos dict in order to expand the buttons if
-                # necessary to achive a better look & feel
-                if frame == 'Export':
-                    row = grid.child_get_property(button, 'left-attach')
-                    column = grid.child_get_property(button, 'top-attach')
-                    export_frame_pos[column][row] = button
-                button.show()
-
-        # Expand the buttons if the widgets of the same column in different rows are hidden
-        for row, widget in list(export_frame_pos[0].items()):
-            if not widget:
-                if export_frame_pos[1][row]:
-                    grid.child_set_property(export_frame_pos[1][row], 'top-attach', 0)
-                    grid.child_set_property(export_frame_pos[1][row], 'height', len(export_frame_pos))
-            else:
-                if not export_frame_pos[1][row]:
-                    grid.child_set_property(export_frame_pos[0][row], 'height', len(export_frame_pos))
-
-
-    def set_logos(self, gui):
-        """ Set the logos of the product and the company
-        """
-
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(get_image_path('logo.svg'))
-        pixbuf = pixbuf.scale_simple(
-            int(pixbuf.get_width()*self.wprop),
-            int(pixbuf.get_height()*self.wprop),
-            GdkPixbuf.InterpType.BILINEAR)
-        self.dialog.set_logo(pixbuf)
-
-        teltek_logo = gui.get_object("teltek")
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(get_image_path('teltek.svg'))
-        pixbuf = pixbuf.scale_simple(
-            int(pixbuf.get_width()*self.wprop),
-            int(pixbuf.get_height()*self.wprop),
-            GdkPixbuf.InterpType.BILINEAR)
-        teltek_logo.set_from_pixbuf(pixbuf)
-
-    def fill_info(self, grid, info):
-        """ Fill the Information PopUp with the tracks information
-        Args:
-            grid (Gtk.Grid): the grid element of 2 columns to be filled.
-            info (Dict): the tracks of the MP and its information as value.
-        """
-        row = 0
-        for e in info:
-            void_label = Gtk.Label('')
-            void_label.show()
-            grid.attach(void_label, 0, row, 1, 1)
-            void_label = Gtk.Label('')
-            void_label.show()
-            grid.attach(void_label, 1, row, 1, 1)
-            row += 1
-            for info_label, info_content in list(e.items()):
-                label = Gtk.Label.new(info_label.title())
-                label.set_halign(Gtk.Align.END)
-                label.show()
-                content = Gtk.Label.new(info_content.title())
-                content.set_halign(Gtk.Align.START)
-                content.show()
-                grid.attach(label, 0, row, 1, 1)
-                grid.attach(content, 1, row, 1, 1)
-                row += 1
-        grid.show()
-
-    def fill_mp_info(self, gui, info):
-        """ Fill next recordings PopUp grid with the MP information
-        """
-        # FIXME: Merge fill info and fill mp info in any way?
-        # Make a generic function in order to fill grids with dynamic widgets information
-        grid = gui.get_object('mp_grid')
-        row = 1
-        for mp in info:
-            column = 0
-            for label, content in list(mp.items()):
-                widget = gui.get_object('{}_mp'.format(label))
-                if widget:
-                    if isinstance(widget, Gtk.Label):
-                        new_widget = Gtk.Label().new(content)
-                    else:
-                        new_widget = Gtk.Button().new_with_label(_("Record Now"))
-                        # FIXME: Use set_properties?
-                        new_widget.set_property('halign', widget.get_property('halign'))
-                        new_widget.set_property('valign', widget.get_property('valign'))
-                        new_widget.connect("clicked", self.send_start, content)
-                        recorder = context.get_recorder()
-                        if recorder.status == ERROR_STATUS:
-                            new_widget.set_sensitive(False)
-                    widget_classes = widget.get_style_context().list_classes()
-                    for style_class in widget_classes:
-                        widget_style_context = new_widget.get_style_context()
-                        widget_style_context.add_class(style_class)
-                    new_widget.show()
-
-                grid.attach(new_widget, column, row, 1, 1)
-                column += 1
-            row += 1
-
-    # FIXME: so specific, give it as a callback?
-    def send_start(self, origin, data):
-        mp = context.get_repository().get(data)
-        mp.anticipated = True
-        context.get_recorder().record(mp)
-        self.dialog.destroy()
-        return True
-
-
-    def resize_buttons(self, area, fontsize, equal = False):
-        """Adapts buttons to the dialog size"""
-        wprop = self.wprop
-        fsize=int(wprop*fontsize)
-        chars = int(wprop*26)
-        for button in area.get_children():
-            for element in button.get_children():
-                if type(element) == Gtk.Label:
-                    #element.set_attributes(font2)
-                    if equal:
-                        element.set_padding(-1, int(wprop*fsize/2.6))
-                        element.set_width_chars(chars)
-                else:# is a box
-                    for box in element.get_children():
-                        for label in box.get_children():
-                            if type(label) == Gtk.Label:
-                                #label.set_attributes(font2)
-                                label.set_padding(int(wprop*fsize),
-                                                  int(wprop*fsize/3))
-                                if equal:
-                                    label.set_padding(int(wprop*fsize/3),
-                                                      int(wprop*fsize/2.6))
-                                    label.set_width_chars(chars)
-                            elif type(label) == Gtk.Button:
-                                for other in label.get_children():
-                                    if type(other) == Gtk.Label:
-                                        #other.set_attributes(font2)
-                                        if equal:
-                                            other.set_padding(-1, int(wprop*fsize/2.6))
-                                            other.set_width_chars(chars)
-
+    def on_dialog_response(self, button, response_id):
+        if self.close_before_response_action and self.close_parent:
+            pass
+        if self.response_action:
+            self.response_action(response_id)
+        if self.close_on_response:
+            self.dialog_destroy()
 
     def force_response(self, origin=None, response=None):
-        if response:
-            self.dialog.response(response)
+        if self.response_action:
+            self.response_action(response)
+        self.dialog_destroy()
 
-    def on_about_dialog_response(self, origin, response_id):
-        if response_id in NEGATIVE:
-            context.get_mainwindow().get_style_context().remove_class('shaded')
-            self.dialog_destroy()
-
-    def on_dialog_response(self, origin, response_id):
-        if response_id not in NEGATIVE and self.response_action:
-            if self.close_on_response:
-                if self.close_before_response_action:
-                    self.dialog_destroy()
-                    self.response_action(response_id, builder=self.gui, popup=self)
-                else:
-                    self.response_action(response_id, builder=self.gui, popup=self)
-                    self.dialog_destroy()
-            else:
-                self.response_action(response_id, builder=self.gui, popup=self)
-        else:
-            self.dialog_destroy()
-            if self.close_parent:
-                GObject.idle_add(context.get_mainwindow().do_quit)
-
-
-    def dialog_destroy(self, origin=None):
-        global instance
+    def dialog_destroy(self, *args):
         if self.dialog:
-            context.get_mainwindow().get_style_context().remove_class('shaded')
-            self.dialog.destroy()
+            self.dialog.close()
             self.dialog = None
-        instance = None
-
-        self.dispatcher.emit("action-audio-enable-msg")
-
-GObject.type_register(PopUp)
-
-def main(args):
-    """Launcher for debugging purposes"""
-    print("Running Main Message PopUp")
-    PopUp()
-    Gtk.main()
-    return 0
-
-if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+        return True

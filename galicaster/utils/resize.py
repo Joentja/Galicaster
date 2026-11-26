@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 # Galicaster, Multistream Recorder and Player
 #
-#       galicaster/utils/readable
+#       galicaster/utils/resize
 #
 # Copyright (c) 2011, Teltek Video Research <galicaster@teltek.es>
 #
@@ -12,45 +12,25 @@
 # San Francisco, California, 94105, USA.
 
 from gi.repository import Pango
-from gi.repository import Gtk
-from galicaster.core import context
 
-def relabel(label,size,bold):
+def _font_attrs(size, bold):
+    attrs = Pango.AttrList()
+    if size:
+        attrs.insert(Pango.attr_size_new(int(size * Pango.SCALE)))
     if bold:
-        modification = "bold "+str(size)
-    else:
-        modification = str(size)
-    label.modify_font(Pango.FontDescription(modification))
+        attrs.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
+    return attrs
 
+def relabel(label, size, bold):
+    label.set_attributes(_font_attrs(size, bold))
 
-def relabel_updating_font(label,size,bold):
-    if bold:
-        modification = "bold "+str(size)
-    else:
-        modification = str(size)
-    font = Pango.FontDescription(modification)
-    label.modify_font(font)
+def relabel_updating_font(label, size, bold):
+    font = _font_attrs(size, bold)
+    label.set_attributes(font)
     return font
 
-def resize_button(button,**kwargs):
-    try:
-        image = button.get_children()
-        if type(image[0]) == Gtk.Image:
-            image[0].set_pixel_size(int(kwargs.get('size_image',None)))
-        elif type(image[0]) == Gtk.Box:
-            for element in image[0].get_children():
-                if type(element) == Gtk.Image:
-                    element.set_pixel_size(int(kwargs.get('size_box',None)))
-                if type(element) == Gtk.Label:
-                    relabel(image[0],kwargs.get('size_label',None),False)
-        elif type(image[0]) == Gtk.VBox:
-            for element in image[0].get_children():
-                if type(element) == Gtk.Image:
-                    element.set_pixel_size(int(kwargs.get('size_vbox',None)))
-        else:
-            relabel(image[0],kwargs.get('size_label',None),False)
-    except Exception as exc:
-        logger = context.get_logger()
-        logger.error(exc)
-
+def resize_button(button, **kwargs):
+    size_image = kwargs.get('size_image')
+    if size_image:
+        button.set_size_request(int(size_image), int(size_image))
     return button

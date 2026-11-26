@@ -13,7 +13,7 @@
 
 import os
 from datetime import datetime
-from gi.repository import Gdk, GLib
+from gi.repository import GLib
 
 from galicaster.mediapackage import mediapackage
 from galicaster.recorder import Recorder
@@ -66,7 +66,7 @@ class RecorderService(object):
         self.error_msg = None
         self.recorder = None
         self.__recorderklass = recorderklass
-        self.__create_drawing_areas_func = None
+        self.__create_pictures_func = None
         self.__handle_recover_id = None
         self.autorecover = autorecover
 
@@ -77,8 +77,8 @@ class RecorderService(object):
         self.dispatcher.connect("recorder-error", WeakMethod(self, '_handle_error'))
 
 
-    def set_create_drawing_areas_func(self, func):
-        self.__create_drawing_areas_func = func
+    def set_create_pictures_func(self, func):
+        self.__create_pictures_func = func
 
 
     def preview(self):
@@ -124,13 +124,13 @@ class RecorderService(object):
 
         self.mute_preview(self.mute)
 
-        def drawing_areas_wrapper():
-            if self.__create_drawing_areas_func:
+        def pictures_wrapper():
+            if self.__create_pictures_func:
                 info = self.recorder.get_display_areas_info()
-                areas = self.__create_drawing_areas_func(info)
-                self.recorder.set_drawing_areas(areas)
+                pictures = self.__create_pictures_func(info)
+                self.recorder.set_pictures(pictures)
 
-        Gdk.threads_add_idle(GLib.PRIORITY_HIGH, drawing_areas_wrapper)
+        GLib.idle_add(pictures_wrapper)
 
 
 
@@ -293,6 +293,21 @@ class RecorderService(object):
             self.logger.info("Preview enabled {}".format(bin_names))
         except Exception as exc:
             self.logger.error("Error in bins {}: {}".format(bin_names,exc))
+
+    def set_input_volume(self, bin_name, value):
+        """Proxy function to set the input volume of an audio source"""
+        try:
+            self.recorder and self.recorder.set_input_volume(bin_name, value)
+        except Exception as exc:
+            self.logger.error("Error setting input volume of {}: {}".format(bin_name, exc))
+
+    def get_input_volume(self, bin_name):
+        """Proxy function to get the input volume of an audio source"""
+        return self.recorder.get_input_volume(bin_name) if self.recorder else None
+
+    def get_audio_bins(self):
+        """Proxy function to get the audio bins of the current recorder"""
+        return self.recorder.get_audio_bins() if self.recorder else {}
 
     def get_mute_status(self):
         return self.recorder.mute_status if self.recorder else {"input":{},"preview":{}}

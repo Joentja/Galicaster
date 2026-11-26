@@ -15,7 +15,6 @@
 import sys
 
 from gi.repository import Gst
-from gi.repository import GdkX11 # noqa: ignore=F401
 Gst.init(None)
 
 from galicaster.core import context
@@ -304,6 +303,13 @@ class Recorder(object):
             self.dispatcher.emit("recorder-message-element", message.get_structure())
 
 
+    def __bin_name_for_element(self, element):
+        for name, bin in list(self.bins.items()):
+            for elem in bin.iterate_elements():
+                if elem == element:
+                    return name
+        return None
+
     def __set_vumeter(self, message):
         struct = message.get_structure()
         rms_values = struct.get_value('rms')
@@ -323,7 +329,8 @@ class Recorder(object):
             stereo = False
             valor2 = valor
 
-        self.dispatcher.emit("recorder-vumeter", valor, valor2, stereo)
+        bin_name = self.__bin_name_for_element(message.src)
+        self.dispatcher.emit("recorder-vumeter", bin_name, valor, valor2, stereo)
 
 
     def is_pausable(self):
@@ -397,18 +404,47 @@ class Recorder(object):
         except Exception as exc:
             logger.error(exc)
 
-    def set_drawing_areas(self, players):
-        self.players = players
+    def set_pictures(self, pictures):
+        self.players = pictures
 
-        # Link videoareas with sinks
-        for name, element in list(self.players.items()):
-            # TODO: check xid
-            xid = element.get_property('window').get_xid()
+        # Link Gtk.Picture widgets with the gtk4paintablesink elements
+        for name, picture in list(self.players.items()):
+            sink = self.pipeline.get_by_name(name)
+            if sink is None:
+                logger.warning("No video sink named {} in the pipeline".format(name))
+                continue
             try:
-                getattr(self.pipeline.get_by_name(name), 'set_window_handle')
-                self.pipeline.get_by_name(name).set_window_handle(xid)
+                paintable = sink.get_property('paintable')
+                if paintable is not None:
+                    picture.set_paintable(paintable)
+                else:
+                    logger.warning("Sink {} has no paintable yet, waiting for it".format(name))
+
+                    def on_notify(sink, param):
+                        paintable = sink.get_property('paintable')
+                        if paintable is not None:
+                            picture.set_paintable(paintable)
+                            sink.disconnect_by_func(on_notify)
+
+                    sink.connect('notify::paintable', on_notify)
             except Exception:
-                logger.warning("Pipeline {} doesn't have set_window_handle".format(name))
+                logger.warning("Pipeline {} doesn't have a paintable property".format(name))
+
+    def get_audio_bins(self):
+        return dict((name, bin) for name, bin in list(self.bins.items()) if bin.has_audio)
+
+    def set_input_volume(self, bin_name, value):
+        bin = self.bins.get(bin_name)
+        if bin and bin.has_audio:
+            bin.set_input_volume(value)
+        else:
+            logger.warning("No audio bin named {}".format(bin_name))
+
+    def get_input_volume(self, bin_name):
+        bin = self.bins.get(bin_name)
+        if bin and bin.has_audio:
+            return bin.get_input_volume()
+        return None
 
     def get_display_areas_info(self):
         display_areas_info = []

@@ -33,8 +33,16 @@ def get_data_dir():
     """Retrieve the path to the folder where resource files are stored.
     If a file name is provided, the path will be for the file
     """
-    
+
     return path.abspath(path.join(path.dirname(__file__), "..", "..", "resources"))
+
+
+def widget_children(widget):
+    """Iterate over the children of a GTK4 container widget"""
+    child = widget.get_first_child()
+    while child is not None:
+        yield child
+        child = child.get_next_sibling()
 
 
 

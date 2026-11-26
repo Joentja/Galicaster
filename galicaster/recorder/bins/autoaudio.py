@@ -69,6 +69,12 @@ class GCautoaudio(Gst.Bin, base.Base):
             "range": (1.0,10),
             "description": "Audio amplification",
             },
+        "volume": {
+            "type": "float",
+            "default": 1.0,
+            "range": (0,2),
+            "description": "Audio input volume",
+            },
         "audioencoder": {
             "type": "text",
             "default": "lamemp3enc target=1 bitrate=192 cbr=true",
@@ -134,6 +140,17 @@ class GCautoaudio(Gst.Bin, base.Base):
         if "amplification" in self.options:
             ampli = self.get_by_name("gc-autoaudio-amplify")
             ampli.set_property("amplification", float(self.options["amplification"]))
+        if "volume" in self.options:
+            vol = self.get_by_name("gc-autoaudio-volumeinput")
+            vol.set_property("volume", float(self.options["volume"]))
+
+    def set_input_volume(self, value):
+        element = self.get_by_name("gc-autoaudio-volumeinput")
+        element.set_property("volume", float(value))
+
+    def get_input_volume(self):
+        element = self.get_by_name("gc-autoaudio-volumeinput")
+        return element.get_property("volume")
 
     def changeValve(self, value):
         valve1=self.get_by_name('gc-autoaudio-valve')
