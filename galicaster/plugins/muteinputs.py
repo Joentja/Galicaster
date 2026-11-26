@@ -3,23 +3,27 @@
 #
 #       galicaster/plugins/muteinputs
 #
-# Copyright (c) 2016, Teltek Video Research <galicaster@teltek.es>
+# Copyright (c) 2011, Teltek Video Research <galicaster@teltek.es>
 #
 # This work is licensed under the Creative Commons Attribution-
 # NonCommercial-ShareAlike 3.0 Unported License. To view a copy of
 # this license, visit http://creativecommons.org/licenses/by-nc-sa/3.0/
 # or send a letter to Creative Commons, 171 Second Street, Suite 300,
 # San Francisco, California, 94105, USA.
+"""
+Plugin that adds an input mute toggle button to the recorder page (GTK4)
+"""
 
 from galicaster.core import context
-from gi.repository import Pango, Gtk
 from galicaster.core.core import PAGES
-from galicaster.utils.resize import resize_button
+from galicaster.utils.i18n import _
+from gi.repository import Gtk
 
 conf = None
 logger = None
 recorder = None
 dispatcher = None
+
 
 def init():
     global conf, logger, recorder, dispatcher
@@ -29,95 +33,64 @@ def init():
     recorder = context.get_recorder()
     dispatcher.connect('init', manage_button)
 
+
 def manage_button(element=None):
     recorder.enable_input()
-    label = set_label(2,2,"Input status: ")
-    label1 = set_label(0,1)
-    context.get_mainwindow().insert_element(label,PAGES['REC'],"status_panel", "attach",left=0,top=4,width=1,height=1)
-    context.get_mainwindow().insert_element(label1,PAGES['REC'],"status_panel", "attach", left=1,top=4,width=1,height=1)
+    label = Gtk.Label(label=_("Input status: "), xalign=0)
+    label1 = Gtk.Label(label="", xalign=0)
+
+    to_disable = conf.get("muteinputs", "bins")
+    to_disable = [] if to_disable == "" else [b.strip() for b in to_disable.split(",")]
+    mute_type = conf.get_choice("muteinputs", "mute_type", ["input", "preview"], "input")
+    started_mute = conf.get_boolean("muteinputs", "mute_on_startup")
 
     button = Gtk.ToggleButton()
-    hbox = Gtk.Box()
-    button.add(hbox)
-    icon = Gtk.Image().new_from_icon_name("video-display",3)
-    hbox.pack_start(icon,True,True,0)
-    size = context.get_mainwindow().get_size()
-    k1 = size[0] / 1920.0
-    resize_button(button,size_image=k1*44,size_box=k1*46)
+    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+    icon = Gtk.Image.new_from_icon_name("video-display")
+    icon.set_pixel_size(32)
+    hbox.append(icon)
+    hbox.append(Gtk.Label(label=_("Mute inputs")))
+    button.set_child(hbox)
 
-    to_disable = conf.get("muteinputs","bins")
-    if to_disable == "":
-        to_disable = []
-    else:
-        to_disable = [bin.strip() for bin in to_disable.split(",")]
+    page = context.get_mainwindow().get_page(PAGES['REC'])
+    tool = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    tool.append(label)
+    tool.append(label1)
+    tool.append(button)
+    page.add_tool(tool)
 
-    mute_type = conf.get_choice("muteinputs","mute_type", ["input", "preview"], "input")
-    started_mute = conf.get_boolean("muteinputs","mute_on_startup")
-
-    try:
-        buttonREC = context.get_mainwindow().insert_element(button,PAGES['REC'],"buttonbox", "attach", left=6,top=0,width=1,height=1)
-        buttonREC.connect("clicked",mute_inputs, mute_type, label1, to_disable)
-    except Exception as exc:
-        logger.error(exc)
-
+    button.connect("clicked", mute_inputs, mute_type, label1, to_disable)
     if started_mute:
-        buttonREC.set_active(True)
-
+        button.set_active(True)
     dispatcher.connect("recorder-ready", reload_mute, mute_type, label1, started_mute, button, to_disable)
-
     set_status_label(label1, mute_type)
 
-def set_label(justify, halign, text=None):
-    label = Gtk.Label(text)
-    label.set_property("xalign", 1.0)
-    label.set_property("xpad",10)
-    label.set_property("wrap", True)
-    label.set_property("justify",justify)
-    label.set_property("ellipsize",3)
-    label.set_property("halign",halign)
 
-    size = context.get_mainwindow().get_size()
-    k1 = size[0] / 1920.0
-    label.set_use_markup(True)
-    label.modify_font(Pango.FontDescription("Bold "+ str(int(k1*20))))
-
-    return label
-
-
-def set_status_label(label1, mute_type):
-    global logger
-    status = ""
-    for elem in recorder.get_mute_status()[mute_type]:
-        if recorder.get_mute_status()[mute_type][elem]:
-            status+=" "+elem
-    label1.set_text(status)
-    logger.info("Status label changed to: {}".format(status))
-
-def mute_inputs(element, mute_type, label1, to_disable=[], button_status=None):
-    global logger, recorder
-    try:
-        button_status = element.get_active()
-    except Exception:
-        pass
-
-    if  button_status:
-        if mute_type=="input":
+def mute_inputs(button, mute_type, label, to_disable):
+    if button.get_active():
+        if mute_type == "input":
             recorder.disable_input(to_disable)
         else:
             recorder.disable_preview(to_disable)
+        label.set_text(_("Muted"))
     else:
-        if mute_type=="input":
+        if mute_type == "input":
             recorder.enable_input(to_disable)
         else:
             recorder.enable_preview(to_disable)
+        label.set_text(_("Active"))
 
-    set_status_label(label1, mute_type)
 
-def reload_mute(element, mute_type, label1, started_mute, button, to_disable=[]):
-    toggle = False
+def reload_mute(element, mute_type, label, started_mute, button, to_disable):
     if started_mute:
-        toggle = True
-    if not button.get_active() == toggle:
-        button.set_active(toggle)
+        button.set_active(True)
     else:
-        mute_inputs(None, mute_type, label1, to_disable, button.get_active())
+        button.set_active(False)
+    set_status_label(label, mute_type)
+
+
+def set_status_label(label, mute_type):
+    status = recorder.get_mute_status()
+    key = "input" if mute_type == "input" else "preview"
+    muted = status.get(key, {}) and not all(status[key].values())
+    label.set_text(_("Muted") if muted else _("Active"))

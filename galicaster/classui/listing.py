@@ -76,6 +76,10 @@ class ListingClassUI(Gtk.Box):
         info_button.connect('clicked', self.on_info)
         top.append(info_button)
 
+        edit_button = Gtk.Button(label=_("Edit metadata"))
+        edit_button.connect('clicked', self.on_edit)
+        top.append(edit_button)
+
         delete_button = Gtk.Button(label=_("Delete"))
         delete_button.connect('clicked', self.on_delete)
         top.append(delete_button)
@@ -173,6 +177,13 @@ class ListingClassUI(Gtk.Box):
                     "text": _("Date: {0}\nStatus: {1}\nDuration: {2}").format(
                         mp.getDate(), mp.status, mp.getDuration())}
             message.PopUp(message.MP_INFO, text, context.get_mainwindow())
+
+    def on_edit(self, button):
+        from galicaster.classui.metadata import MetadataClass
+        mp = self.get_selected_mp()
+        if mp:
+            MetadataClass(mp, parent=context.get_mainwindow())
+            self.refresh()
 
     def on_delete(self, button):
         mp = self.get_selected_mp()

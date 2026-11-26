@@ -238,7 +238,11 @@ class GCWindow(Gtk.Window):
         UtilsShutdown()
 
     def on_key_press(self, controller, keyval, keycode, state):
-        self.dispatcher.emit("action-key-press", self, keyval)
+        self.dispatcher.emit("action-key-press", self, keyval, state)
 
     def on_key_release(self, controller, keyval, keycode, state):
-        self.dispatcher.emit("action-key-release", self, keyval)
+        self.dispatcher.emit("action-key-release", self, keyval, state)
+
+    def get_page(self, cod):
+        """Returns the notebook page widget for the given page code"""
+        return self.nbox.get_nth_page(cod)

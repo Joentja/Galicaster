@@ -61,12 +61,9 @@ def configure_quit(signal=None):
 # CURSOR
 def hide_cursor():
     logger.info("Hide cursor")
-    blank_cursor = Gdk.Cursor(Gdk.CursorType.BLANK_CURSOR)
-    window = Gdk.get_default_root_window()
-    window.set_cursor(blank_cursor)
+    blank_cursor = Gdk.Cursor.new_from_name("none", None)
+    context.get_mainwindow().set_cursor(blank_cursor)
 
 def show_cursor(emiter=None):
     logger.info("Show cursor")
-    arrow_cursor = Gdk.Cursor(Gdk.CursorType.ARROW)
-    window = Gdk.get_default_root_window()
-    window.set_cursor(arrow_cursor)
+    context.get_mainwindow().set_cursor(None)

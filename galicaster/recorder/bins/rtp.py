@@ -111,8 +111,8 @@ class GCrtp(Gst.Bin, base.Base):
             },
         "videosink" : {
             "type": "select",
-            "default": "xvimagesink",
-            "options": ["xvimagesink", "ximagesink", "autovideosink", "fpsdisplaysink","fakesink"],
+            "default": "gtk4paintablesink",
+            "options": ["gtk4paintablesink", "xvimagesink", "ximagesink", "autovideosink", "fpsdisplaysink","fakesink"],
             "description": "Video sink",
         },
         "audiosink" : {
